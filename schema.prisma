@@ -1,0 +1,125 @@
+// NW CINEMA — ma'lumotlar bazasi sxemasi (PostgreSQL + Prisma)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Foydalanuvchilar (botga /start bosganlar)
+model User {
+  id           Int        @id @default(autoincrement())
+  telegramId   BigInt     @unique
+  firstName    String?
+  username     String?
+  photoUrl     String?
+  theme        String     @default("dark")  // "dark" | "light"
+  language     String     @default("uz")    // kelajakda "en"
+  isBlocked    Boolean    @default(false)   // botni bloklagan
+  createdAt    DateTime   @default(now())
+  lastActiveAt DateTime   @default(now())   // "faol foydalanuvchi" hisobi uchun
+
+  favorites    Favorite[]
+  searches     SearchLog[]
+}
+
+// Adminlar (faqat oldindan belgilangan Telegram ID lar)
+model Admin {
+  id         Int        @id @default(autoincrement())
+  telegramId BigInt     @unique
+  createdAt  DateTime   @default(now())
+
+  broadcasts Broadcast[]
+}
+
+model Genre {
+  id     Int          @id @default(autoincrement())
+  slug   String       @unique        // "action", "drama" ...
+  nameUz String
+  nameEn String?                     // kelajak uchun
+
+  movies MovieGenre[]
+}
+
+model Movie {
+  id            Int          @id @default(autoincrement())
+  code          String       @unique   // kino kodi (takrorlanmaydi)
+  title         String
+  originalTitle String?
+  year          Int
+  country       String?
+  durationMin   Int?
+  description   String?
+  posterUrl     String
+  backdropUrl   String?
+  trailerUrl    String?
+  watchUrl      String?               // qonuniy tomosha manbasi
+  rating        Decimal?     @db.Decimal(3, 1)  // ishonchli ma'lumot bo'lsa
+  popularity    Int          @default(0)
+  isFeatured    Boolean      @default(false)    // bosh sahifa banneri (bittasi)
+  isRecommended Boolean      @default(false)
+  isTrending    Boolean      @default(false)    // qo'lda belgilash (avtomatik hisobdan oldin chiqadi)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  genres        MovieGenre[]
+  favorites     Favorite[]
+  searches      SearchLog[]
+
+  @@index([title])
+  @@index([year])
+  @@index([createdAt])
+}
+
+// Kino <-> Janr (ko'pga-ko'p)
+model MovieGenre {
+  movieId Int
+  genreId Int
+  movie   Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre   Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, genreId])
+}
+
+// Sevimlilar (My List)
+model Favorite {
+  userId    Int
+  movieId   Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@id([userId, movieId])   // bir kino ikki marta qo'shilmaydi
+}
+
+// Qidiruv statistikasi
+model SearchLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  query     String
+  movieId   Int?                      // topilgan/bosilgan kino
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  movie     Movie?   @relation(fields: [movieId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+// Xabar yuborish tarixi
+model Broadcast {
+  id           Int      @id @default(autoincrement())
+  adminId      Int
+  type         String   // "text" | "photo" | "video"
+  text         String?
+  mediaFileId  String?
+  status       String   @default("pending") // pending | sending | done
+  totalCount   Int      @default(0)
+  sentCount    Int      @default(0)
+  failedCount  Int      @default(0)
+  blockedCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  admin        Admin    @relation(fields: [adminId], references: [id])
+}
