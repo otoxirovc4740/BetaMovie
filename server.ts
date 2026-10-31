@@ -19,8 +19,7 @@ declare module 'fastify' {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const webDistPath = path.resolve(__dirname, '../web/dist');
-
+const webDistPath = path.resolve(process.cwd(), 'web/dist');
 const card = {
   id: true,
   code: true,
